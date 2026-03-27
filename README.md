@@ -1,18 +1,42 @@
-This project presents an AI-powered Conversational Business Intelligence (BI) Agent designed to simplify data analysis for non-technical users. The system allows users to ask questions in natural language and automatically generates SQL queries, executes them on a large e-commerce dataset, and returns both tabular results and visual insights.
+# AI Conversational BI Agent
 
-The solution follows an agent-based architecture, where a reasoning model interprets user queries and orchestrates multiple tools such as SQL generation, query execution, error correction, and insight generation.
+## Overview
+This project is an AI-powered BI agent that converts natural language queries into SQL, executes them on an e-commerce dataset using DuckDB, and returns results with visualizations and insights.
 
-A hybrid model approach is used:
+## How to Run
+```
+pip install -r requirements.txt
+ollama pull llama3
+ollama pull sqlcoder
+streamlit run app.py
+```
 
-A reasoning model handles query understanding and decision-making
-A specialized SQL model generates accurate SQL queries
+## Architecture Overview
+User Query  
+↓  
+AI Agent (Llama3 - reasoning)  
+↓  
+SQL Generator (SQLCoder)  
+↓  
+DuckDB (execution engine)  
+↓  
+Error Correction (retry mechanism)  
+↓  
+Insight Generator (Llama3)  
+↓  
+Visualization (chart)
 
-The system uses DuckDB as the execution engine to efficiently process large datasets and perform complex multi-table joins.
+## Design Decisions
+- DuckDB used for efficient analytical queries on large datasets
+- Hybrid model: Llama3 for reasoning, SQLCoder for SQL generation
+- Agent-based architecture enables tool usage and flexible reasoning
+- Retry mechanism improves reliability of SQL execution
 
-Additionally, the system includes:
+## Limitations
+- LLM-generated SQL may fail for complex queries
+- Performance depends on query complexity
+- Requires local models via Ollama
 
-Self-correcting SQL mechanism to handle query failures
-Automatic chart generation (bar, line, pie) based on result type
-Business insight generation to translate raw data into meaningful conclusions
-
-Overall, this project demonstrates how AI agents can be used to build scalable, intelligent, and user-friendly data analytics systems.
+## Failure Handling
+- SQL errors are captured and corrected using a retry mechanism
+- If visualization fails, system still returns tabular output
