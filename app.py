@@ -1,35 +1,60 @@
 import streamlit as st
 import pandas as pd
 from io import StringIO
+
 from db_setup import load_database
-from agent import create_agent
+from tools import generate_sql, execute_sql, generate_insights
 from visualization import generate_chart
 
 st.set_page_config(page_title="AI BI Agent", layout="wide")
 
 st.title("🚀 AI Conversational BI Agent")
 
-load_database()
-agent_executor = create_agent()
+con = load_database()
 
 query = st.text_input("Ask your business question:")
 
-if query:
-    with st.spinner("Thinking..."):
-        response = agent_executor.invoke({"input": query})
+if st.button("Run Query"):
 
-    st.subheader("Raw Output")
-    st.write(response["output"])
+    if query:
+        with st.spinner("Processing..."):
 
-    try:
-        df = pd.read_csv(StringIO(response["output"]))
-        st.subheader("Table")
-        st.dataframe(df)
+            # SQL
+            sql_query = generate_sql.invoke(query)
 
-        fig = generate_chart(df)
-        if fig:
-            st.subheader("Visualization")
-            st.pyplot(fig)
+            st.subheader("🧾 Generated SQL")
 
-    except:
-        st.warning("Could not generate chart")
+            if not sql_query:
+                st.error("❌ Failed to generate SQL. Try clearer question.")
+                st.stop()
+
+            st.code(sql_query, language="sql")
+
+            # Execute
+            result = execute_sql.invoke(sql_query)
+
+            st.subheader("📊 Query Result")
+
+            if "ERROR" in result:
+                st.error(result)
+                st.stop()
+
+            try:
+                df = pd.read_csv(StringIO(result))
+                st.dataframe(df)
+
+                fig = generate_chart(df)
+                if fig:
+                    st.subheader("📈 Visualization")
+                    st.pyplot(fig)
+
+            except:
+                st.write(result)
+
+            # Insights
+            st.subheader("💡 Business Insights")
+            insights = generate_insights.invoke(result)
+            st.write(insights)
+
+    else:
+        st.warning("Please enter a query")
