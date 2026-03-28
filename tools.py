@@ -1,115 +1,106 @@
 from langchain.tools import tool
 import duckdb
+import re
 from llm import get_reasoning_llm, get_sql_llm
 
-# Initialize LLMs
 reason_llm = get_reasoning_llm()
 sql_llm = get_sql_llm()
 
-# Connect to database
 con = duckdb.connect("ecommerce.db")
 
 
 @tool
 def generate_sql(user_query: str) -> str:
-    """Generate SQL query from user input"""
-    
-    prompt = f'''
-You are an expert SQL generator.
+    """Generate SQL query"""
 
-Database Schema:
+    prompt = f"""
+### Task
+Generate SQL query.
 
-orders:
-- order_id
-- user_id
-- order_number
-- order_dow
-- order_hour_of_day
-- days_since_prior_order
+### RULES:
+- Use ONLY given columns
+- DO NOT use order_date
+- Use order_hour_of_day for time
+- Use order_dow for day
+- Always return SQL starting with SELECT
 
-order_products_prior:
-- order_id
-- product_id
-- add_to_cart_order
-- reordered
+### Schema
 
-products:
-- product_id
-- product_name
-- aisle_id
-- department_id
+orders(order_id, user_id, order_number, order_dow, order_hour_of_day, days_since_prior_order)
 
-aisles:
-- aisle_id
-- aisle
+order_products_prior(order_id, product_id, add_to_cart_order, reordered)
 
-departments:
-- department_id
-- department
+products(product_id, product_name, aisle_id, department_id)
 
-IMPORTANT RULES:
-- Use ONLY the columns listed above
-- Use JOINs when needed
-- product_name exists ONLY in products table
-- reordered exists ONLY in order_products_prior
-- Do NOT use columns that do not exist
-- Return ONLY SQL (no explanation)
-
-User Query:
+### Question
 {user_query}
-'''
-    return sql_llm.invoke(prompt).content.strip()
+
+### SQL Query
+"""
+
+    try:
+        response = sql_llm.invoke(prompt)
+
+        text = response.content if hasattr(response, "content") else str(response)
+
+        if not text:
+            return ""
+
+        text = text.strip().replace("```sql", "").replace("```", "")
+
+        match = re.search(r"(SELECT[\s\S]+)", text, re.IGNORECASE)
+
+        if match:
+            sql = match.group(1).strip()
+
+            # 🚨 HARD FIX (prevent order_date error)
+            if "order_date" in sql.lower():
+                return ""
+
+            return sql
+
+        return ""
+
+    except:
+        return ""
 
 
 @tool
 def execute_sql(query: str) -> str:
-    """Execute SQL query and return results"""
-    try:
-        df = con.execute(query).fetchdf()
-        
-        if df.empty:
-            return "No data found."
+    """Execute SQL"""
 
-        return df.head(20).to_csv(index=False)  # limit output for safety
+    try:
+        if not query:
+            return "ERROR: SQL generation failed"
+
+        if "order_date" in query.lower():
+            return "ERROR: Invalid column 'order_date'"
+
+        if not query.lower().startswith("select"):
+            return "ERROR: Only SELECT allowed"
+
+        df = con.execute(query).fetchdf()
+
+        if df.empty:
+            return "No data found"
+
+        return df.to_csv(index=False)
 
     except Exception as e:
         return f"ERROR: {str(e)}"
 
 
 @tool
-def fix_sql(input_text: str) -> str:
-    """Fix SQL query if execution fails"""
-    
-    prompt = f'''
-You are an expert SQL debugger.
-
-Fix the SQL query based on the error.
-
-Rules:
-- Use correct table names
-- Use correct columns
-- Add JOINs if needed
-- Return ONLY corrected SQL
-
-Error + Query:
-{input_text}
-'''
-    return reason_llm.invoke(prompt).content.strip()
-
-
-@tool
 def generate_insights(data: str) -> str:
-    """Generate business insights from query results"""
-    
-    prompt = f'''
-You are a data analyst.
+    """Generate insights"""
 
-Here is the query output:
+    prompt = f"""
+You are a business analyst.
 
+Data:
 {data}
 
-Provide:
-- 2 clear business insights
-- Keep it simple and practical
-'''
+Give 2 short business insights.
+"""
+
     return reason_llm.invoke(prompt).content.strip()
