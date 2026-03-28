@@ -1,7 +1,9 @@
-from langchain.agents import create_tool_calling_agent, AgentExecutor
-from langchain.prompts import ChatPromptTemplate
+from langchain.agents import initialize_agent, AgentType
+from langchain_core.prompts import ChatPromptTemplate
+
 from tools import generate_sql, execute_sql, fix_sql, generate_insights
 from llm import get_reasoning_llm
+
 
 def create_agent():
     llm = get_reasoning_llm()
@@ -25,6 +27,11 @@ Always use tools.
         ("human", "{input}")
     ])
 
-    agent = create_tool_calling_agent(llm, tools, prompt)
+    agent = initialize_agent(
+        tools,
+        llm,
+        agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+        verbose=True
+    )
 
-    return AgentExecutor(agent=agent, tools=tools, verbose=True)
+    return agent
